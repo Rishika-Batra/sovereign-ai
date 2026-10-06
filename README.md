@@ -25,26 +25,26 @@ The system enforces strict network isolation. The Backend and PostgreSQL contain
 
 ```mermaid
 graph TD
-    User([User]) -->|HTTP :80| Nginx[NGINX Reverse Proxy]
-    
-    subgraph Public Network
-        Nginx -->|Route: /| Frontend[Next.js Frontend :3000]
-        Nginx -->|Route: /api| Backend[FastAPI Backend :8000]
-        OllamaProxy[Ollama NGINX Proxy :11434]
+    User([User]) -->|"HTTP :80"| Nginx["NGINX Reverse Proxy"]
+
+    subgraph Public["Public Network"]
+        Nginx -->|"Route: /"| Frontend["Next.js Frontend :3000"]
+        Nginx -->|"Route: /api"| Backend["FastAPI Backend :8000"]
+        OllamaProxy["Ollama NGINX Proxy :11434"]
     end
 
-    subgraph Internal Network (No Internet)
-        Backend -->|SQL/Vector Queries| Postgres[(PostgreSQL + pgvector :5432)]
-        Backend -->|LLM & Embeddings| OllamaProxy
+    subgraph Internal["Internal Network (No Internet)"]
+        Backend -->|"SQL/Vector Queries"| Postgres[("PostgreSQL + pgvector :5432")]
+        Backend -->|"LLM & Embeddings"| OllamaProxy
     end
 
-    OllamaProxy -->|Host Routing| OllamaHost[Host Ollama Server]
+    OllamaProxy -->|"Host Routing"| OllamaHost["Host Ollama Server"]
 
-    subgraph Ollama Models
-        OllamaHost --> Llama[llama3.1:8b (General & Document)]
-        OllamaHost --> Qwen[qwen2.5-coder:7b (Coding)]
-        OllamaHost --> Llava[llava:7b (Vision)]
-        OllamaHost --> Nomic[nomic-embed-text (Embedding)]
+    subgraph Models["Ollama Models"]
+        OllamaHost --> Llama["llama3.1:8b (General & Document)"]
+        OllamaHost --> Qwen["qwen2.5-coder:7b (Coding)"]
+        OllamaHost --> Llava["llava:7b (Vision)"]
+        OllamaHost --> Nomic["nomic-embed-text (Embedding)"]
     end
 ```
 
