@@ -1,0 +1,122 @@
+
+# ─── NETWORK ISOLATION ────────────────────────────────────────────────────────
+#
+# ai-internal (internal: true):
+#   - postgres + backend are peers here.
+#   - Has NO default gateway → containers on this network CANNOT reach the internet.
+#   - Postgres is ONLY on this network (no internet, no host port).
+#
+#   - Backend connects to Ollama via the ollama-proxy service.
+#
+# public:
+#   - frontend + nginx + ollama-proxy live here.
+#   - ollama-proxy needs this to reach host.docker.internal:11434 (Ollama)
+#     because internal:true drops all routing including host.docker.internal on Mac.
+#
+# Production hardening note:
+#   On a Linux host (iptables), add:
+#     iptables -I DOCKER-USER -d 8.8.8.8/32 -j RETURN            # allow DNS
+#     iptables -I DOCKER-USER -d 34.36.0.0/20 -j DROP            # GCP/Gemini
+#     iptables -I DOCKER-USER -d 104.18.0.0/16 -j DROP           # Cloudflare/OpenAI CDN
+#     iptables -I DOCKER-USER -d 172.66.0.0/16 -j DROP           # Anthropic
+#   Or with ufw-docker:
+#     ufw-docker deny backend 443
+#   These rules survive reboots when persisted via /etc/iptables/rules.v4.
+
+networks:
+  ai-internal:
+    internal: true
+  public:
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: sovereign_ai
+    # No port mapping to host — only reachable via ai-internal network
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d sovereign_ai"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-internal
+
+
+  backend:
+    build:
+      context: ./backend
+    expose:
+      - "8000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/sovereign_ai
+      - OLLAMA_URL=http://ollama-proxy:11434
+      - SECRET_KEY=${SECRET_KEY:-dev-only-change-me}
+    extra_hosts:
+      # DNS-level block for known external AI APIs → routed to null/loopback.
+      # Any outbound call to these domains will fail immediately with
+      # "Connection refused" rather than reaching the real endpoint.
+      - "api.openai.com:0.0.0.0"
+      - "api.anthropic.com:0.0.0.0"
+      - "generativelanguage.googleapis.com:0.0.0.0"
+      - "huggingface.co:0.0.0.0"
+      - "api.cohere.ai:0.0.0.0"
+      - "api.together.xyz:0.0.0.0"
+      - "api.replicate.com:0.0.0.0"
+      - "api.mistral.ai:0.0.0.0"
+      # Allow host Ollama
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ai-internal
+
+  ollama-proxy:
+    image: nginx:alpine
+    command: >
+      sh -c "echo 'server { listen 11434; client_max_body_size 50m; location / { proxy_read_timeout 300s; proxy_send_timeout 300s; proxy_pass http://host.docker.internal:11434; proxy_set_header Host localhost; } }' > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - public
+      - ai-internal
+
+
+  frontend:
+    build:
+      context: ./frontend
+    expose:
+      - "3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=
+    depends_on:
+      - backend
+    networks:
+      - public
+
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - public
+      - ai-internal
+
+volumes:
+  postgres_data:

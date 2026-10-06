@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Node
+node_modules/
+.next/
+
+# Uploads
+uploads/
+
+# Environment
+.env
+
+# OS
+.DS_Store
+
+# personal / debug files
+*_Skills_Summary.docx
+debug_preprocessed.png
