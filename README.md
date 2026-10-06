@@ -228,12 +228,6 @@ The system routes LLM calls using the registry defined in `backend/app/ai_gatewa
 
 To swap a model, simply update its `name` attribute in `registry.py` and ensure the model is pulled locally via Ollama.
 
-## Build Roadmap
-
-<!-- TODO: The BUILD_GUIDE.md file is missing from the repository. Below is a placeholder for the requested phase-by-phase checklist. Update this section once the roadmap is recovered. -->
-- [ ] Phase 1 (Missing)
-- [ ] Phase 2 (Missing)
-- [ ] Phase 3 (Missing)
 
 ## Known Issues
 
